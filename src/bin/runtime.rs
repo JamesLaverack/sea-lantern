@@ -11,10 +11,10 @@ use std::process::Stdio;
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let matches = App::new("Sea Lantern Minecraft Runtime")
+    let matches = App::new("Sea Lantern Runtime")
         .version("0.1.0")
         .author("James Laverack <james@jameslaverack.com>")
-        .about("Runs a Java program, redirecting its input and output to a socket while preserving writing to real STDOUT.")
+        .about("Runs Minecraft, redirecting its input and output to a socket while preserving writing to real STDOUT.")
         .arg(Arg::with_name("java")
                  .long("java-executable")
                  .required(true)
