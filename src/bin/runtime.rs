@@ -4,8 +4,9 @@ use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 use tokio::net::UnixListener;
 use tokio::prelude::*;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc};
 use tokio::stream::StreamExt;
+use tokio::io::BufReader;
 
 use std::process::Stdio;
 
@@ -72,6 +73,19 @@ async fn main() -> io::Result<()> {
         };
     });
 
+    let mut minecraft_stdin = minecraft_child_process.stdin.take()
+        .expect("child did not have a handle to stdin");
+    let (minecraft_stdin_mpsc, mut minecraft_stdin_mpsc_output) = mpsc::channel(100);
+    tokio::spawn(async move {
+        // Tokio task to copy from mpsc channel to STDIN
+        while let Some(line) = minecraft_stdin_mpsc_output.recv().await {
+            match minecraft_stdin.write_all(format!("{}\n", line).as_bytes()).await {
+                Ok(_) => (),
+                Err(_) => (),
+            };
+        };
+    });
+
     // Await on the process Future in a Tokio task, which actually runs it.
     tokio::spawn(async {
         minecraft_child_process.await
@@ -89,17 +103,29 @@ async fn main() -> io::Result<()> {
         while let Some(socket_res) = incoming.next().await {
             match socket_res {
                 Ok(mut socket) => {
-                    //let (mut _reader, mut writer) = socket.split();
-                    // Spawn a new async task to subscribe to the broadcast and copy into the
-                    // socket.
                     let mut broadcast_out_for_socket = logs_broadcast_clone.subscribe();
+                    let mut msmc = minecraft_stdin_mpsc.clone();
+
+
                     tokio::spawn(async move {
-                        while let Ok(line) = broadcast_out_for_socket.recv().await {
-                            match socket.write_all(format!("{}\n", line).as_bytes()).await {
-                                Ok(_) => (),
-                                Err(_) => (),
-                            };
-                        };
+                        let (read, mut write) = socket.split();
+                        let mut stream = BufReader::new(read).lines();
+                        loop {
+                            tokio::select! {
+                                Ok(line) = broadcast_out_for_socket.recv() => {
+                                    match write.write_all(format!("{}\n", line).as_bytes()).await {
+                                        Ok(_) => (),
+                                        Err(_) => break,
+                                    };
+                                },
+                                Ok(Some(line)) = stream.next_line() => {
+                                    match msmc.send(line).await {
+                                        Ok(_) => (),
+                                        Err(_) => break,
+                                    };
+                                },
+                            }
+                        }
                     });
                 },
                 Err(_) => {
