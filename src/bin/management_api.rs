@@ -1,3 +1,5 @@
+use clap::{App, Arg};
+
 use tonic::{transport::Server, Request, Response, Status};
 
 use management::minecraft_management_server::{MinecraftManagementServer, MinecraftManagement};
@@ -30,7 +32,24 @@ impl MinecraftManagement for DummyMinecraftManagement {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "[::1]:50051".parse()?;
+
+    let matches = App::new("Sea Lantern Management API")
+        .version("0.1.0")
+        .author("James Laverack <james@jameslaverack.com>")
+        .about("Connects to a Minecraft server run using the runtime over a UNIX socket, provides a gRPC API.")
+        .arg(Arg::with_name("port")
+            .long("grpc-port")
+            .required(true)
+            .takes_value(true)
+            .help("Port to expose gRPC API on"))
+        .arg(Arg::with_name("socket")
+            .long("socket")
+            .required(true)
+            .takes_value(true)
+            .help("URL of Socket to read/write from"))
+        .get_matches();
+
+    let addr = format!("[::1]:{}", matches.value_of("port").unwrap()).parse()?;
     let minecraft_management = DummyMinecraftManagement::default();
 
     Server::builder()
