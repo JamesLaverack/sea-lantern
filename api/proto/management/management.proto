@@ -16,5 +16,6 @@ message User {
 message ListUsersReply {
     // Reply contains the greeting message
     uint32 max_players = 1;
-    repeated User users = 2;
+    uint32 online_players = 2;
+    repeated User users = 3;
 }

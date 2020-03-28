@@ -19,6 +19,7 @@ impl MinecraftManagement for DummyMinecraftManagement {
         println!("Got a request to list users");
 
         let reply = management::ListUsersReply {
+            online_players: 1,
             max_players: 1337,
             users: [].to_vec(),
         };
