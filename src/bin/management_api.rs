@@ -16,7 +16,7 @@ use tokio::time::{self, Duration};
 use tonic::{transport::Server, Request, Response, Status};
 
 use management::minecraft_management_server::{MinecraftManagementServer, MinecraftManagement};
-use management::{ListUsersRequest, ListUsersReply, User};
+use management::{ListPlayersRequest, ListPlayersReply, Player};
 
 pub mod management {
     tonic::include_proto!("management");
@@ -30,18 +30,18 @@ pub struct DummyMinecraftManagement {
 
 #[tonic::async_trait]
 impl MinecraftManagement for DummyMinecraftManagement {
-    async fn list_users(
+    async fn list_players(
         &self,
-        _request: Request<ListUsersRequest>,
-    ) -> Result<Response<ListUsersReply>, Status> {
-        info!("Got a request to list users");
+        _request: Request<ListPlayersRequest>,
+    ) -> Result<Response<ListPlayersReply>, Status> {
+        info!("Got a request to list players");
         // Register to logs
         let logs = &mut self.logs.lock().await.subscribe();
         // Send the list uuid command
         match self.input.lock().await.clone().send("list uuids".to_string()).await {
             Ok(_) => (),
             Err(e) => {
-                error!("Error sending list users command: {}", e);
+                error!("Error sending list players command: {}", e);
                 return Err(Status::unavailable("Failed to communicate with Minecraft process."));
             },
         }
@@ -65,27 +65,27 @@ impl MinecraftManagement for DummyMinecraftManagement {
                     return Err(Status::deadline_exceeded(format!("Minecraft did not respond in under {}ms", delay_millis)));
                 },
                 Ok(line) = logs.recv() => {
-                    debug!("List users task, analysing log line: {}", line);
+                    debug!("List players task, analysing log line: {}", line);
                     match player_list_regex.captures(&line) {
                         Some(caps) => {
                             let u = player_details_regex
                                 .captures_iter(&line)
                                 .map(|m| {
-                                    User{
+                                    Player{
                                         name: m["name"].to_string(),
                                         uuid: m["uuid"].to_string(),
                                     }
                                 })
                                 .collect();
 
-                            let reply = management::ListUsersReply {
+                            let reply = management::ListPlayersReply {
                                 // If the regex matched, these two capture groups must be `\d+`, so
                                 // they're ints. I guess there's a tiny chance that it's too big to
                                 // fit into an u32, but that would be super weird anyway.
                                 online_players: caps["current"].parse::<u32>().unwrap(),
                                 max_players: caps["max"].parse::<u32>().unwrap(),
                                 // TODO
-                                users: u,
+                                players: u,
                             };
 
                             return Ok(Response::new(reply))

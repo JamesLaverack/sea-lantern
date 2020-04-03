@@ -2,20 +2,20 @@ syntax = "proto3";
 package management;
 
 service MinecraftManagement {
-    rpc ListUsers (ListUsersRequest) returns (ListUsersReply);
+    rpc ListPlayers (ListPlayersRequest) returns (ListPlayersReply);
 }
 
-message ListUsersRequest {
+message ListPlayersRequest {
 }
 
-message User {
+message Player {
     string name = 1;
     string uuid = 2;
 }
 
-message ListUsersReply {
+message ListPlayersReply {
     // Reply contains the greeting message
     uint32 max_players = 1;
     uint32 online_players = 2;
-    repeated User users = 3;
+    repeated Player players = 3;
 }
