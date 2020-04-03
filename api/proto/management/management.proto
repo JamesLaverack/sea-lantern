@@ -4,6 +4,8 @@ package management;
 service MinecraftManagement {
     rpc ListPlayers (ListPlayersRequest) returns (ListPlayersReply);
     rpc SaveAll (SaveAllRequest) returns (SaveAllReply);
+    rpc DisableAutomaticSave (DisableAutomaticSaveRequest) returns (DisableAutomaticSaveReply);
+    rpc EnableAutomaticSave (EnableAutomaticSaveRequest) returns (EnableAutomaticSaveReply);
 }
 
 message Player {
@@ -22,3 +24,9 @@ message ListPlayersReply {
 
 message SaveAllRequest {}
 message SaveAllReply {}
+
+message DisableAutomaticSaveRequest {}
+message DisableAutomaticSaveReply {}
+
+message EnableAutomaticSaveRequest {}
+message EnableAutomaticSaveReply {}

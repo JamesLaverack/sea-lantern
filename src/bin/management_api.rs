@@ -16,7 +16,7 @@ use tokio::time::{self, Duration};
 use tonic::{transport::Server, Request, Response, Status};
 
 use management::minecraft_management_server::{MinecraftManagementServer, MinecraftManagement};
-use management::{ListPlayersRequest, ListPlayersReply, Player, SaveAllRequest, SaveAllReply};
+use management::{ListPlayersRequest, ListPlayersReply, Player, SaveAllRequest, SaveAllReply, DisableAutomaticSaveRequest, DisableAutomaticSaveReply, EnableAutomaticSaveRequest, EnableAutomaticSaveReply};
 
 pub mod management {
     tonic::include_proto!("management");
@@ -30,6 +30,84 @@ pub struct DummyMinecraftManagement {
 
 #[tonic::async_trait]
 impl MinecraftManagement for DummyMinecraftManagement {
+    async fn disable_automatic_save(
+        &self,
+        _request: Request<DisableAutomaticSaveRequest>,
+    ) -> Result<Response<DisableAutomaticSaveReply>, Status> {
+        info!("Got a request to disable automatic save");
+        // Register to logs
+        let logs = &mut self.logs.lock().await.subscribe();
+        // Send the save-all command
+        match self.input.lock().await.clone().send("save-off".to_string()).await {
+            Ok(_) => (),
+            Err(e) => {
+                error!("Error sending save-off command: {}", e);
+                return Err(Status::unavailable("Failed to communicate with Minecraft process."));
+            },
+        }
+        // Parse response, waiting for up to half a second
+        let delay_millis = 500;
+        let mut delay = time::delay_for(Duration::from_millis(delay_millis));
+
+        let save_off_regex = Regex::new(r"^\[\d\d:\d\d:\d\d\] \[Server thread/INFO\]: (Automatic saving is now disabled|Saving is already turned off)$").unwrap();
+
+        // Give it a short timeout to start the save, and a long timeout to finish it.
+        loop {
+            tokio::select! {
+                _ = &mut delay => {
+                    error!("operation timed out");
+                    return Err(Status::deadline_exceeded(format!("Minecraft did not respond in under {}ms", delay_millis)));
+                },
+                Ok(line) = logs.recv() => {
+                    debug!("Save all task, analysing log line: {}", line);
+                    if save_off_regex.is_match(&line) {
+                        debug!("Minecraft declared save-off.");
+                        return Ok(Response::new(DisableAutomaticSaveReply{}));
+                    }
+                },
+            }
+        }
+    }
+
+    async fn enable_automatic_save(
+        &self,
+        _request: Request<EnableAutomaticSaveRequest>,
+    ) -> Result<Response<EnableAutomaticSaveReply>, Status> {
+        info!("Got a request to enable automatic save");
+        // Register to logs
+        let logs = &mut self.logs.lock().await.subscribe();
+        // Send the save-all command
+        match self.input.lock().await.clone().send("save-on".to_string()).await {
+            Ok(_) => (),
+            Err(e) => {
+                error!("Error sending save-on command: {}", e);
+                return Err(Status::unavailable("Failed to communicate with Minecraft process."));
+            },
+        }
+        // Parse response, waiting for up to half a second
+        let delay_millis = 500;
+        let mut delay = time::delay_for(Duration::from_millis(delay_millis));
+
+        let save_off_regex = Regex::new(r"^\[\d\d:\d\d:\d\d\] \[Server thread/INFO\]: (Automatic saving is now enabled|Saving is already turned on)$").unwrap();
+
+        // Give it a short timeout to start the save, and a long timeout to finish it.
+        loop {
+            tokio::select! {
+                _ = &mut delay => {
+                    error!("operation timed out");
+                    return Err(Status::deadline_exceeded(format!("Minecraft did not respond in under {}ms", delay_millis)));
+                },
+                Ok(line) = logs.recv() => {
+                    debug!("Save all task, analysing log line: {}", line);
+                    if save_off_regex.is_match(&line) {
+                        debug!("Minecraft declared save-off.");
+                        return Ok(Response::new(EnableAutomaticSaveReply{}));
+                    }
+                },
+            }
+        }
+    }
+
     async fn save_all(
         &self,
         _request: Request<SaveAllRequest>,
