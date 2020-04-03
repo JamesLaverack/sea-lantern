@@ -16,7 +16,7 @@ use tokio::time::{self, Duration};
 use tonic::{transport::Server, Request, Response, Status};
 
 use management::minecraft_management_server::{MinecraftManagementServer, MinecraftManagement};
-use management::{ListUsersRequest, ListUsersReply};
+use management::{ListUsersRequest, ListUsersReply, User};
 
 pub mod management {
     tonic::include_proto!("management");
@@ -56,6 +56,7 @@ impl MinecraftManagement for DummyMinecraftManagement {
 
         // Match from the start of the line so you can't fake it with a chat comment
         let player_list_regex = Regex::new(r"^\[\d\d:\d\d:\d\d\] \[Server thread/INFO\]: There are (?P<current>\d+) of a max (?P<max>\d+) players online:").unwrap();
+        let player_details_regex = Regex::new(r"(?P<name>\w+)[ ]\((?P<uuid>[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12})\)").unwrap();
 
         loop {
             tokio::select! {
@@ -67,6 +68,16 @@ impl MinecraftManagement for DummyMinecraftManagement {
                     debug!("List users task, analysing log line: {}", line);
                     match player_list_regex.captures(&line) {
                         Some(caps) => {
+                            let u = player_details_regex
+                                .captures_iter(&line)
+                                .map(|m| {
+                                    User{
+                                        name: m["name"].to_string(),
+                                        uuid: m["uuid"].to_string(),
+                                    }
+                                })
+                                .collect();
+
                             let reply = management::ListUsersReply {
                                 // If the regex matched, these two capture groups must be `\d+`, so
                                 // they're ints. I guess there's a tiny chance that it's too big to
@@ -74,7 +85,7 @@ impl MinecraftManagement for DummyMinecraftManagement {
                                 online_players: caps["current"].parse::<u32>().unwrap(),
                                 max_players: caps["max"].parse::<u32>().unwrap(),
                                 // TODO
-                                users: [].to_vec(),
+                                users: u,
                             };
 
                             return Ok(Response::new(reply))
