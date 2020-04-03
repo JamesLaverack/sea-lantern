@@ -3,9 +3,7 @@ package management;
 
 service MinecraftManagement {
     rpc ListPlayers (ListPlayersRequest) returns (ListPlayersReply);
-}
-
-message ListPlayersRequest {
+    rpc SaveAll (SaveAllRequest) returns (SaveAllReply);
 }
 
 message Player {
@@ -13,9 +11,14 @@ message Player {
     string uuid = 2;
 }
 
+message ListPlayersRequest {}
+
 message ListPlayersReply {
     // Reply contains the greeting message
     uint32 max_players = 1;
     uint32 online_players = 2;
     repeated Player players = 3;
 }
+
+message SaveAllRequest {}
+message SaveAllReply {}
