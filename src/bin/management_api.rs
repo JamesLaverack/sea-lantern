@@ -2,7 +2,7 @@ use clap::{App, Arg};
 
 use std::sync::{Arc};
 
-use log::{info, error, debug};
+use log::{error, info, debug, trace};
 
 use regex::Regex;
 
@@ -42,11 +42,12 @@ impl MinecraftManagement for DummyMinecraftManagement {
             Ok(_) => (),
             Err(e) => {
                 error!("Error sending list users command: {}", e);
-                return Err(Status::internal(""));
+                return Err(Status::unavailable("Failed to communicate with Minecraft process."));
             },
         }
         // Parse response, waiting for up to half a second
-        let mut delay = time::delay_for(Duration::from_millis(5000));
+        let delay_millis = 500;
+        let mut delay = time::delay_for(Duration::from_millis(delay_millis));
 
         // Of course, we're just looking for the first log line that looks like the response. If
         // multiple lists were executed at the same time, Minecraft would respond to all of them
@@ -60,7 +61,7 @@ impl MinecraftManagement for DummyMinecraftManagement {
             tokio::select! {
                 _ = &mut delay => {
                     error!("operation timed out");
-                    return Err(Status::deadline_exceeded(""));
+                    return Err(Status::deadline_exceeded(format!("Minecraft did not respond in under {}ms", delay_millis)));
                 },
                 Ok(line) = logs.recv() => {
                     debug!("List users task, analysing log line: {}", line);
@@ -147,10 +148,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     };
                 },
                 Ok(Some(line)) = buffered_logs.next_line() => {
-                    debug!("Got log line from runtime, broadcasting to tasks: {}", line);
+                    debug!("Saw log line from runtime, broadcasting to tasks: {}", line);
                     match logs_arc.lock().await.send(line) {
                         Ok(_) => (),
-                        Err(e) => error!("Failed to send to broadcast to task: {:?}", e),
+                        Err(_) => trace!("Failed to broadcast to tasks, probably because there aren't any."),
                     };
                 },
             };
