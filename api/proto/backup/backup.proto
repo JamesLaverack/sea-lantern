@@ -1,0 +1,12 @@
+syntax = "proto3";
+package backup;
+
+service MinecraftBackup {
+    rpc Backup (BackupRequest) returns (stream BackupChunk);
+}
+
+message BackupRequest {}
+
+message BackupChunk {
+    bytes Content = 1;
+}

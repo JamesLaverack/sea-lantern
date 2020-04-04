@@ -12,6 +12,10 @@ path = "src/bin/runtime.rs"
 name = "management-api"
 path = "src/bin/management_api.rs"
 
+[[bin]]
+name = "backup-api"
+path = "src/bin/backup_api.rs"
+
 [dependencies]
 clap = "2.33.0"
 tokio = { version = "0.2", features = ["full"] }
