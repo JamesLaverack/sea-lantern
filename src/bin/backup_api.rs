@@ -1,15 +1,11 @@
 use clap::{App, Arg};
 
-use std::sync::{Arc};
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
-use log::{error, info, debug, trace};
-
-use regex::Regex;
+use log::{error, info, debug};
 
 use tokio::io::AsyncBufReadExt;
 use tokio::prelude::*;
-use tokio::net::UnixStream;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::io::BufReader;
 use tokio::time::{self, Duration};
@@ -37,9 +33,11 @@ pub struct DummyMinecraftBackup {
 }
 
 fn new<P, S>(p :P, u :S) -> DummyMinecraftBackup where P: Into<PathBuf>, S: Into<String>{
+    let ui = u.into();
+    info!("API URL: {:?}", ui);
     DummyMinecraftBackup{
-        management_api_url: u.into(),
         world_filepath: p.into(),
+        management_api_url: ui,
     }
 }
 
@@ -53,6 +51,15 @@ impl MinecraftBackup for DummyMinecraftBackup {
         request: Request<BackupRequest>,
     ) -> Result<Response<Self::BackupStream>, Status> {
         info!("Got a backup request");
+
+        let mut management_client = match MinecraftManagementClient::connect(self.management_api_url.clone()).await {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to connect to Management API: {:?}", e);
+                return Err(Status::unavailable("Unable to connect to Management API"));
+            },
+        };
+        management_client.save_all(tonic::Request::new(SaveAllRequest{})).await?;
 
         let (mut tx, rx) = mpsc::channel(4);
 
@@ -102,8 +109,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Server::builder()
         .add_service(MinecraftBackupServer::new(new(
-            management_api_url,
             world_filepath,
+            management_api_url,
         )))
         .serve(addr)
         .await?;

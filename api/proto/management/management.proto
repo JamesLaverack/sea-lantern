@@ -4,6 +4,7 @@ package management;
 service MinecraftManagement {
     rpc ListPlayers (ListPlayersRequest) returns (ListPlayersReply);
     rpc SaveAll (SaveAllRequest) returns (SaveAllReply);
+    // TODO Replace with a SetAutomaticSave rpc, along with a WatchAutomaticSave that streams changes in that option
     rpc DisableAutomaticSave (DisableAutomaticSaveRequest) returns (DisableAutomaticSaveReply);
     rpc EnableAutomaticSave (EnableAutomaticSaveRequest) returns (EnableAutomaticSaveReply);
 }
