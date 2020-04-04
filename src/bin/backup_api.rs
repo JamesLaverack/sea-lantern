@@ -59,14 +59,18 @@ impl MinecraftBackup for DummyMinecraftBackup {
                 return Err(Status::unavailable("Unable to connect to Management API"));
             },
         };
-        management_client.save_all(tonic::Request::new(SaveAllRequest{})).await?;
 
         let (mut tx, rx) = mpsc::channel(4);
 
         tokio::spawn(async move {
+            management_client.save_all(tonic::Request::new(SaveAllRequest{})).await?;
+            management_client.disable_automatic_save(tonic::Request::new(DisableAutomaticSaveRequest{})).await?;
+
             tx.send(Ok(BackupChunk{content: "one".bytes().into_iter().collect()})).await.unwrap();
             tx.send(Ok(BackupChunk{content: "two".bytes().into_iter().collect()})).await.unwrap();
             println!(" /// done sending");
+
+            management_client.enable_automatic_save(tonic::Request::new(EnableAutomaticSaveRequest{})).await
         });
 
         debug!("Exiting from handler and letting async task do its thing.");
