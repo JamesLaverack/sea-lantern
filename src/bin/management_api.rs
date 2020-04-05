@@ -16,20 +16,32 @@ use tokio::time::{self, Duration};
 use tonic::{transport::Server, Request, Response, Status};
 
 use management::minecraft_management_server::{MinecraftManagementServer, MinecraftManagement};
-use management::{ListPlayersRequest, ListPlayersReply, Player, SaveAllRequest, SaveAllReply, DisableAutomaticSaveRequest, DisableAutomaticSaveReply, EnableAutomaticSaveRequest, EnableAutomaticSaveReply};
+use management::{ListPlayersReply, Player};
+
+// SaveAllRequest, SaveAllReply, DisableAutomaticSaveRequest, DisableAutomaticSaveReply, EnableAutomaticSaveRequest, EnableAutomaticSaveReply
 
 pub mod management {
     tonic::include_proto!("management");
 }
 
 #[derive(Debug)]
-pub struct DummyMinecraftManagement {
-    logs: Arc<Mutex<tokio::sync::broadcast::Sender<String>>>,
-    input: Arc<Mutex<tokio::sync::mpsc::Sender<String>>>,
+pub struct RconMinecraftManagement {
+    rcon_host :String,
+    rcon_port :u16,
+}
+
+impl RconMinecraftManagement {
+    fn new<S, P>(rcon_host :S, rcon_port :P) -> Self where S: Into<String>, P: Into<u16> {
+        RconMinecraftManagement {
+            rcon_host: rcon_host.into(),
+            rcon_port: rcon_port.into(),
+        }
+    }
 }
 
 #[tonic::async_trait]
-impl MinecraftManagement for DummyMinecraftManagement {
+impl MinecraftManagement for RconMinecraftManagement {
+    /*
     async fn disable_automatic_save(
         &self,
         _request: Request<DisableAutomaticSaveRequest>,
@@ -168,22 +180,15 @@ impl MinecraftManagement for DummyMinecraftManagement {
         }
 
     }
-
+    */
     async fn list_players(
         &self,
-        _request: Request<ListPlayersRequest>,
+        _request: Request<()>,
     ) -> Result<Response<ListPlayersReply>, Status> {
         info!("Got a request to list players");
         // Register to logs
-        let logs = &mut self.logs.lock().await.subscribe();
-        // Send the list uuid command
-        match self.input.lock().await.clone().send("list uuids".to_string()).await {
-            Ok(_) => (),
-            Err(e) => {
-                error!("Error sending list players command: {}", e);
-                return Err(Status::unavailable("Failed to communicate with Minecraft process."));
-            },
-        }
+        Err(Status::internal("lol"))
+        /*
         // Parse response, waiting for up to half a second
         let delay_millis = 500;
         let mut delay = time::delay_for(Duration::from_millis(delay_millis));
@@ -233,7 +238,9 @@ impl MinecraftManagement for DummyMinecraftManagement {
                     };
                 },
             }
+
         }
+        */
 
     }
 }
@@ -245,71 +252,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("Sea Lantern Management API")
         .version("0.1.0")
         .author("James Laverack <james@jameslaverack.com>")
-        .about("Connects to a Minecraft server run using the runtime over a UNIX socket, provides a gRPC API.")
-        .arg(Arg::with_name("port")
+        .about("Connects to a Minecraft server using RCON, provides a gRPC API.")
+        .arg(Arg::with_name("grpc-port")
             .long("grpc-port")
             .required(true)
             .takes_value(true)
             .help("Port to expose gRPC API on"))
-        .arg(Arg::with_name("socket")
-            .long("socket")
+        .arg(Arg::with_name("minecraft-rcon-host")
+            .long("minecraft-rcon-host")
             .required(true)
             .takes_value(true)
-            .help("URL of Socket to read/write from"))
+            .help("Hostname of the minecraft server"))
+        .arg(Arg::with_name("minecraft-rcon-port")
+            .long("minecraft-rcon-port")
+            .required(true)
+            .takes_value(true)
+            .help("Port of the minecraft server"))
         .get_matches();
 
-    let addr = format!("[::1]:{}", matches.value_of("port").unwrap()).parse()?;
+    let addr = format!("[::1]:{}", matches.value_of("grpc-port").unwrap()).parse()?;
 
-
-    let (minecraft_stdin_mpsc, mut minecraft_stdin_mpsc_output) = mpsc::channel(100);
-
-
-    // We'll have a short-lived Tokio task for each gRPC connection. Use a broadcast channel to
-    // stream logs to the tasks, and a mpsc channel to take commands.
-    let (logs_broadcast, _) = broadcast::channel(16);
-
-    let logs_arc = Arc::new(Mutex::new(logs_broadcast));
-
-    let minecraft_management = DummyMinecraftManagement{
-        input: Arc::new(Mutex::new(minecraft_stdin_mpsc)),
-        logs: logs_arc.clone(),
-    };
-
-    tokio::spawn(async move {
-        let socket_address = matches.value_of("socket").unwrap();
-        info!("Connecting to Minecraft process on socket '{}'", socket_address);
-        let mut socket = match UnixStream::connect(socket_address).await {
-            Ok(s) => s,
-            Err(err) => {
-                error!("Failed to connect to socket: {}", err);
-                panic!(err);
-            },
-        };
-        let (unbuffered_logs, mut write) = socket.split();
-        let mut buffered_logs = BufReader::new(unbuffered_logs).lines();
-
-        loop {
-            tokio::select! {
-                Some(line) = minecraft_stdin_mpsc_output.recv() => {
-                    debug!("Got command from task, sending to runtime: {}", line);
-                    match write.write_all(format!("{}\n", line).as_bytes()).await {
-                        Ok(_) => (),
-                        Err(e) => error!("Failed to send to runtime: {:?}", e),
-                    };
-                },
-                Ok(Some(line)) = buffered_logs.next_line() => {
-                    debug!("Saw log line from runtime, broadcasting to tasks: {}", line);
-                    match logs_arc.lock().await.send(line) {
-                        Ok(_) => (),
-                        Err(_) => trace!("Failed to broadcast to tasks, probably because there aren't any."),
-                    };
-                },
-            };
-        }
-    });
+    let rcon_server = RconMinecraftManagement::new(
+        matches.value_of("minecraft-rcon-host").unwrap(),
+        matches.value_of("minecraft-rcon-port").unwrap().parse::<u16>()?,
+    );
 
     Server::builder()
-        .add_service(MinecraftManagementServer::new(minecraft_management))
+        .add_service(MinecraftManagementServer::new(rcon_server))
         .serve(addr)
         .await?;
 

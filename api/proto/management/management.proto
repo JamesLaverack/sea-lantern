@@ -1,12 +1,14 @@
 syntax = "proto3";
 package management;
 
+import "google/protobuf/empty.proto";
+
 service MinecraftManagement {
-    rpc ListPlayers (ListPlayersRequest) returns (ListPlayersReply);
-    rpc SaveAll (SaveAllRequest) returns (SaveAllReply);
+    rpc ListPlayers (google.protobuf.Empty) returns (ListPlayersReply);
+    //rpc SaveAll (SaveAllRequest) returns (SaveAllReply);
     // TODO Replace with a SetAutomaticSave rpc, along with a WatchAutomaticSave that streams changes in that option
-    rpc DisableAutomaticSave (DisableAutomaticSaveRequest) returns (DisableAutomaticSaveReply);
-    rpc EnableAutomaticSave (EnableAutomaticSaveRequest) returns (EnableAutomaticSaveReply);
+    //rpc DisableAutomaticSave (DisableAutomaticSaveRequest) returns (DisableAutomaticSaveReply);
+    //rpc EnableAutomaticSave (EnableAutomaticSaveRequest) returns (EnableAutomaticSaveReply);
 }
 
 message Player {
@@ -14,15 +16,13 @@ message Player {
     string uuid = 2;
 }
 
-message ListPlayersRequest {}
-
 message ListPlayersReply {
     // Reply contains the greeting message
     uint32 max_players = 1;
     uint32 online_players = 2;
     repeated Player players = 3;
 }
-
+/*
 message SaveAllRequest {}
 message SaveAllReply {}
 
@@ -30,4 +30,4 @@ message DisableAutomaticSaveRequest {}
 message DisableAutomaticSaveReply {}
 
 message EnableAutomaticSaveRequest {}
-message EnableAutomaticSaveReply {}
+message EnableAutomaticSaveReply {}*/
