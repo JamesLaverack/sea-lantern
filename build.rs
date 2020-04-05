@@ -3,7 +3,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(
             &[
                 "api/proto/management/management.proto",
-                "api/proto/backup/backup.proto",
             ],
             &["api/proto"],
         )?;

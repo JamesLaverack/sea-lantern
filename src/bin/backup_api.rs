@@ -4,16 +4,23 @@ use std::path::{PathBuf};
 
 use log::{error, info, debug};
 
+use flate2::Compression;
+use flate2::write::GzEncoder;
+
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
+
+use std::convert::Infallible;
+use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Request, Response, Server, StatusCode};
+
 use tokio::io::AsyncBufReadExt;
 use tokio::prelude::*;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::io::BufReader;
 use tokio::time::{self, Duration};
 
-use tonic::{transport::Server, Request, Response, Status};
-
-use backup::minecraft_backup_server::{MinecraftBackupServer, MinecraftBackup};
-use backup::{BackupRequest, BackupChunk};
+use tonic::{Request as TonicRequest, Response as TonicResponse};
 
 use management::minecraft_management_client::MinecraftManagementClient;
 use management::{SaveAllRequest, SaveAllReply, DisableAutomaticSaveRequest, DisableAutomaticSaveReply, EnableAutomaticSaveRequest, EnableAutomaticSaveReply};
@@ -22,60 +29,62 @@ pub mod management {
     tonic::include_proto!("management");
 }
 
-pub mod backup {
-    tonic::include_proto!("backup");
-}
+static INDEX: &str = "examples/send_file_index.html";
+static INTERNAL_SERVER_ERROR: &[u8] = b"Internal Server Error";
+static NOTFOUND: &[u8] = b"Not Found";
 
 #[derive(Debug)]
-pub struct DummyMinecraftBackup {
+pub struct BackupSvc {
     management_api_url :String,
     world_filepath :PathBuf,
 }
 
-fn new<P, S>(p :P, u :S) -> DummyMinecraftBackup where P: Into<PathBuf>, S: Into<String>{
-    let ui = u.into();
-    info!("API URL: {:?}", ui);
-    DummyMinecraftBackup{
-        world_filepath: p.into(),
-        management_api_url: ui,
+type GenericError = Box<dyn std::error::Error + Send + Sync>;
+type HyperResult<T> = std::result::Result<T, GenericError>;
+
+impl BackupSvc {
+    fn new<P, S>(p :P, u :S) -> BackupSvc where P: Into<PathBuf>, S: Into<String>{
+        BackupSvc {
+            world_filepath: p.into(),
+            management_api_url: u.into(),
+        }
     }
-}
 
-#[tonic::async_trait]
-impl MinecraftBackup for DummyMinecraftBackup {
-
-    type BackupStream = mpsc::Receiver<Result<BackupChunk, Status>>;
-
-    async fn backup(
-        &self,
-        request: Request<BackupRequest>,
-    ) -> Result<Response<Self::BackupStream>, Status> {
+    async fn backup(&self, _req: Request<Body>) -> HyperResult<Response<Body>> {
         info!("Got a backup request");
 
         let mut management_client = match MinecraftManagementClient::connect(self.management_api_url.clone()).await {
             Ok(c) => c,
             Err(e) => {
                 error!("Failed to connect to Management API: {:?}", e);
-                return Err(Status::unavailable("Unable to connect to Management API"));
+                let response = Response::builder()
+                    .status(StatusCode::InternalServerError)
+                    .body("Unable to connect to Management API")?;
+                Ok(response);
             },
         };
-
-        let (mut tx, rx) = mpsc::channel(4);
-
+        /*
         tokio::spawn(async move {
-            management_client.save_all(tonic::Request::new(SaveAllRequest{})).await?;
-            management_client.disable_automatic_save(tonic::Request::new(DisableAutomaticSaveRequest{})).await?;
+            management_client.save_all(tonic::Request::new(SaveAllRequest {})).await?;
+            management_client.disable_automatic_save(tonic::Request::new(DisableAutomaticSaveRequest {})).await?;
 
-            tx.send(Ok(BackupChunk{content: "one".bytes().into_iter().collect()})).await.unwrap();
-            tx.send(Ok(BackupChunk{content: "two".bytes().into_iter().collect()})).await.unwrap();
+            let enc = GzEncoder::new(tx, Compression::default());
+            let mut tar = tar::Builder::new(enc);
+            tar.append_dir_all("", self.world_filepath.clone())?;
+
             println!(" /// done sending");
 
-            management_client.enable_automatic_save(tonic::Request::new(EnableAutomaticSaveRequest{})).await
+            management_client.enable_automatic_save(tonic::Request::new(EnableAutomaticSaveRequest {})).await
         });
-
+        */
         debug!("Exiting from handler and letting async task do its thing.");
-        Ok(Response::new(rx))
+        Ok(Response::new("test".into()))
     }
+}
+
+
+async fn hello_world(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
+    Ok(Response::new("Hello, World".into()))
 }
 
 #[tokio::main]
@@ -108,16 +117,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let management_api_url = matches.value_of("management-api-url").unwrap();
     info!("Using URL to management API: {}", management_api_url);
 
-    let addr = format!("[::1]:{}", matches.value_of("port").unwrap()).parse()?;
-    info!("Serving Backup API from: {}", addr);
+    let addr :std::net::SocketAddr = format!("[::1]:{}", matches.value_of("port").unwrap()).parse()?;
+    info!("Serving Backup API from: {:?}", addr);
 
-    Server::builder()
-        .add_service(MinecraftBackupServer::new(new(
-            world_filepath,
-            management_api_url,
-        )))
-        .serve(addr)
-        .await?;
+    let backup_svc = BackupSvc::new(
+        world_filepath,
+        management_api_url,
+    );
+
+    /*
+    let make_service =
+        make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(backup_svc.clone().backup())) });
+
+    let server = Server::bind(&addr).serve(make_service);
+    */
+
+    // A `Service` is needed for every connection, so this
+    // creates one from our `hello_world` function.
+    let make_svc = make_service_fn(|_conn| async {
+        // service_fn converts our function into a `Service`
+        Ok::<_, Infallible>(service_fn(|r| async { backup_svc.backup(r) }))
+    });
+
+    let server = Server::bind(&addr)
+        .serve(make_svc);
+
+
+    println!("Listening on http://{}", addr);
+
+    if let Err(e) = server.await {
+        eprintln!("server error: {}", e);
+    }
 
     Ok(())
 }
