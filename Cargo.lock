@@ -753,9 +753,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "sea-lantern"
+name = "sea_lantern"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "clap",
  "flate2",
  "hyper",

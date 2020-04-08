@@ -1,6 +1,8 @@
 use clap::{App, Arg};
 
 use std::sync::{Arc};
+use std::fmt;
+use std::error;
 
 use log::{error, info, debug, trace};
 
@@ -14,6 +16,8 @@ use tokio::io::BufReader;
 use tokio::time::{self, Duration};
 
 use tonic::{transport::Server, Request, Response, Status};
+
+use sea_lantern::rcon::{write_rcon_packet, RconPacketType};
 
 use management::minecraft_management_server::{MinecraftManagementServer, MinecraftManagement};
 use management::{ListPlayersReply, Player};
@@ -37,6 +41,7 @@ impl RconMinecraftManagement {
             rcon_port: rcon_port.into(),
         }
     }
+
 }
 
 #[tonic::async_trait]
@@ -186,8 +191,15 @@ impl MinecraftManagement for RconMinecraftManagement {
         _request: Request<()>,
     ) -> Result<Response<ListPlayersReply>, Status> {
         info!("Got a request to list players");
-        // Register to logs
-        Err(Status::internal("lol"))
+        // Auth to rcons
+        Ok(Response::new(management::ListPlayersReply {
+            // If the regex matched, these two capture groups must be `\d+`, so
+            // they're ints. I guess there's a tiny chance that it's too big to
+            // fit into an u32, but that would be super weird anyway.
+            online_players: 3,
+            max_players: 22,
+            players: [].to_vec(),
+        }))
         /*
         // Parse response, waiting for up to half a second
         let delay_millis = 500;
