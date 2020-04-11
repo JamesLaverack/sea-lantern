@@ -1,6 +1,7 @@
 # Sea Lantern
 
 ![Project Status](https://img.shields.io/badge/project_status-alpha-red)
+![Rust Build](https://github.com/JamesLaverack/sea-lantern/workflows/Rust%20Build/badge.svg)
 
 An Operator for Minecraft on Kubernetes.
 
