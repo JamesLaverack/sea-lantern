@@ -1,26 +1,18 @@
 use clap::{App, Arg};
 
-use std::sync::{Arc};
-use std::fmt;
-use std::error;
 
-use log::{error, info, debug, trace};
+use log::{error, info, debug};
 
 use regex::Regex;
 
-use tokio::io::AsyncBufReadExt;
-use tokio::prelude::*;
-use tokio::net::UnixStream;
-use tokio::sync::{broadcast, mpsc, Mutex};
-use tokio::io::BufReader;
-use tokio::time::{self, Duration};
-
 use tonic::{transport::Server, Request, Response, Status};
-
-use sea_lantern::rcon::{write_rcon_packet, RconPacketType};
 
 use management::minecraft_management_server::{MinecraftManagementServer, MinecraftManagement};
 use management::{ListPlayersReply, Player};
+use std::net::SocketAddr;
+
+use rcon::Connection as RconConnection;
+
 
 // SaveAllRequest, SaveAllReply, DisableAutomaticSaveRequest, DisableAutomaticSaveReply, EnableAutomaticSaveRequest, EnableAutomaticSaveReply
 
@@ -30,15 +22,15 @@ pub mod management {
 
 #[derive(Debug)]
 pub struct RconMinecraftManagement {
-    rcon_host :String,
-    rcon_port :u16,
+    rcon_address: SocketAddr,
+    rcon_password: String,
 }
 
 impl RconMinecraftManagement {
-    fn new<S, P>(rcon_host :S, rcon_port :P) -> Self where S: Into<String>, P: Into<u16> {
+    fn new<S, A>(rcon_address: A, rcon_password: S) -> Self where S: Into<String>, A: Into<SocketAddr> {
         RconMinecraftManagement {
-            rcon_host: rcon_host.into(),
-            rcon_port: rcon_port.into(),
+            rcon_address: rcon_address.into(),
+            rcon_password: rcon_password.into(),
         }
     }
 
@@ -191,99 +183,50 @@ impl MinecraftManagement for RconMinecraftManagement {
         _request: Request<()>,
     ) -> Result<Response<ListPlayersReply>, Status> {
         info!("Got a request to list players");
-        
+        let mut conn = match RconConnection::connect(self.rcon_address, self.rcon_password.as_str()).await {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Encountered error connecting to server: {:?}", e);
+                return Err(Status::unavailable("Unable to connect to Minecraft"));
+            },
+        };
+        let response = match conn.cmd("list uuids").await {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Encountered error sending command to server: {:?}", e);
+                return Err(Status::unavailable("Unable to connect to Minecraft"));
+            },
+        };
 
-        let remote_addr: SocketAddr = format!("{}:{}", self.rcon_host, self.rcon_port).parse()?;
-
-        // We use port 0 to let the operating system allocate an available port for us.
-        let local_addr: SocketAddr = if remote_addr.is_ipv4() {
-            "0.0.0.0:0"
-        } else {
-            "[::]:0"
-        }
-            .parse()?;
-
-        let mut socket = UdpSocket::bind(local_addr).await?;
-        const MAX_DATAGRAM_SIZE: usize = 65_507;
-        socket.connect(&remote_addr).await?;
-
-        // Auth
-        let mut rcon_packet = [0u8; sea_lantern::rcon::MAXIMUM_PAYLOAD_LENGTH];
-        rcon_packet_size = write_rcon_packet(0, RconPacketType::Login, &self.rcon_password, &rcon_packet)?;
-        socket.send(&rcon_packet[0..rcon_packet_size]).await?;
-
-        let mut data = [0u8; MAX_DATAGRAM_SIZE];
-        let len = socket.recv(&mut data).await?;
-        println!(
-            "Received {} bytes:\n{}",
-            len,
-            String::from_utf8_lossy(&data[..len])
-        );
-
-        Ok(())
-        // Auth to rcons
-        Ok(Response::new(management::ListPlayersReply {
-            // If the regex matched, these two capture groups must be `\d+`, so
-            // they're ints. I guess there's a tiny chance that it's too big to
-            // fit into an u32, but that would be super weird anyway.
-            online_players: 3,
-            max_players: 22,
-            players: [].to_vec(),
-        }))
-        /*
-        // Parse response, waiting for up to half a second
-        let delay_millis = 500;
-        let mut delay = time::delay_for(Duration::from_millis(delay_millis));
-
-        // Of course, we're just looking for the first log line that looks like the response. If
-        // multiple lists were executed at the same time, Minecraft would respond to all of them
-        // and we might see a log line intended for another request. That's acceptable however as
-        // it would still be correct.
-
-        // Match from the start of the line so you can't fake it with a chat comment
-        let player_list_regex = Regex::new(r"^\[\d\d:\d\d:\d\d\] \[Server thread/INFO\]: There are (?P<current>\d+) of a max (?P<max>\d+) players online:").unwrap();
+        let player_list_regex = Regex::new(r"^There are (?P<current>\d+) of a max (?P<max>\d+) players online:").unwrap();
         let player_details_regex = Regex::new(r"(?P<name>\w+)[ ]\((?P<uuid>[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12})\)").unwrap();
 
-        loop {
-            tokio::select! {
-                _ = &mut delay => {
-                    error!("operation timed out");
-                    return Err(Status::deadline_exceeded(format!("Minecraft did not respond in under {}ms", delay_millis)));
-                },
-                Ok(line) = logs.recv() => {
-                    debug!("List players task, analysing log line: {}", line);
-                    match player_list_regex.captures(&line) {
-                        Some(caps) => {
-                            let u = player_details_regex
-                                .captures_iter(&line)
-                                .map(|m| {
-                                    Player{
-                                        name: m["name"].to_string(),
-                                        uuid: m["uuid"].to_string(),
-                                    }
-                                })
-                                .collect();
+        debug!("Got response {}", response);
 
-                            let reply = management::ListPlayersReply {
-                                // If the regex matched, these two capture groups must be `\d+`, so
-                                // they're ints. I guess there's a tiny chance that it's too big to
-                                // fit into an u32, but that would be super weird anyway.
-                                online_players: caps["current"].parse::<u32>().unwrap(),
-                                max_players: caps["max"].parse::<u32>().unwrap(),
-                                // TODO
-                                players: u,
-                            };
-
-                            return Ok(Response::new(reply))
-                        },
-                        None => {()},
-                    };
-                },
-            }
-
-        }
-        */
-
+        return match player_list_regex.captures(&response) {
+            Some(caps) => {
+                Ok(Response::new(management::ListPlayersReply {
+                    // If the regex matched, these two capture groups must be `\d+`, so
+                    // they're unsigned ints. I guess there's a tiny chance that it's too big to
+                    // fit into an u32, but that would be super weird anyway.
+                    online_players: caps["current"].parse::<u32>().unwrap(),
+                    max_players: caps["max"].parse::<u32>().unwrap(),
+                    players: player_details_regex
+                        .captures_iter(&response)
+                        .map(|m| {
+                            Player {
+                                name: m["name"].to_string(),
+                                uuid: m["uuid"].to_string(),
+                            }
+                        })
+                        .collect(),
+                }))
+            },
+            None => {
+                error!("Response from a 'list uuids' did not match expectation!");
+                Err(Status::unknown("Minecraft responded in an unexpected way"))
+            },
+        };
     }
 }
 
@@ -300,24 +243,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .required(true)
             .takes_value(true)
             .help("Port to expose gRPC API on"))
-        .arg(Arg::with_name("minecraft-rcon-host")
-            .long("minecraft-rcon-host")
+        .arg(Arg::with_name("minecraft-rcon-address")
+            .long("minecraft-rcon-address")
             .required(true)
             .takes_value(true)
-            .help("Hostname of the minecraft server"))
-        .arg(Arg::with_name("minecraft-rcon-port")
-            .long("minecraft-rcon-port")
+            .help("Address of the minecraft server"))
+        .arg(Arg::with_name("minecraft-rcon-password")
+            .long("minecraft-rcon-password")
             .required(true)
             .takes_value(true)
-            .help("Port of the minecraft server"))
+            .help("Password of the minecraft server"))
         .get_matches();
 
     let addr = format!("[::1]:{}", matches.value_of("grpc-port").unwrap()).parse()?;
+    let minecraft_addr = match matches.value_of("minecraft-rcon-address").unwrap().parse::<SocketAddr>() {
+        Ok(a) => a,
+        Err(e) => {
+            error!("Failed to parse server address {} : {:?}", matches.value_of("minecraft-rcon-address").unwrap(), e);
+            return Err(e)?;
+        },
+    };
 
     let rcon_server = RconMinecraftManagement::new(
-        matches.value_of("minecraft-rcon-host").unwrap(),
-        matches.value_of("minecraft-rcon-port").unwrap().parse::<u16>()?,
+        minecraft_addr,
+        matches.value_of("minecraft-rcon-password").unwrap(),
     );
+
+    info!("Serving gRPC API on {:?}", addr);
 
     Server::builder()
         .add_service(MinecraftManagementServer::new(rcon_server))
