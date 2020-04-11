@@ -1,42 +1,22 @@
 # Sea Lantern
 
-An Operator for Minecraft on Kubernetes
+![Project Status](https://img.shields.io/badge/project_status-alpha-red)
 
-# Architecture
+An Operator for Minecraft on Kubernetes.
 
-- The [Operator](src/bin/operator.rs) itself runs as Deployment in the `sea-lantern-system` Namespace and orchestrates
-  everything.
-- The `MinecraftServer`, `MinecraftServerVersion`, and `MinecraftRollingServerVersion` custom resource definitions.
+## Motivation
 
-## Per Server Version
+There are many reasons for wanting to run Minecraft in Kubernetes:
 
-For each `MinecraftServerVersion`, the operator runs a Job that will build a container image for that version and
-upload it to a given container registry. The `status.image` field of the resource will be set to the name of the built
-image.
+* You want to take advantage of spare capacity on an existing cluster.
+* You want to run multiple servers on the same hardware.
+* You want to run Minecraft and other applications on the same hardware.
 
-A rolling server version pins a spesific distribution (e.g., paper, spigot, etc.) and minecraft version (e.g., 1.15.2)
-but will auto-generate new `MinecraftServerVersion` resources each time the underlying distribution upgrades. 
+However, if you only want Minecraft and you don't know a lot about Kubernetes to begin with, then it's likely to be a
+steep learning curve.
 
-Servers can set either `spec.serverVersionName` or `spec.rollingServerVersionName`.
+## Current Status
 
-## Per-Server
-
-For each `MinecraftServer` you get, in the server's namespace:
-- [Server controller](src/bin/server_controller.rs) runs as a Deployment and manages all resources for that
-  server. 
-- [Management API](src/bin/management_api.rs) runs as a Deployment and is a kind of "proxy" or "gateway" that connects
-  to the server's RCON API and provides a gRPC API for external use. Authentication is provided using Kuberentes
-  service accounts.
-- A Pod to be the minecraft server itself:
-  - The [EULA Writer](src/bin/eula_writer.rs) runs as an init container and writes the eula.txt file for the server
-    depending on the `spec.eula` field of the `MinecraftServer` resource.
-  - Minecraft runs in a Container by itself, just the server JAR and a Java runtime. The only requirement is that RCONs
-    is enabled.
-  - Config Updater runs as a sidecar, and continually pushes updates to the `server.properties` file.
-
-# Supported Server Versions
-
-- Vanilla
-- Spigot
-- Forge
-- Paper
+* The [Management API](src/bin/management_api.rs) exists as a standalone component that will communicate with a
+  Minecraft server that has enabled [RCON](https://wiki.vg/RCON). It fronts the RCON API into
+  [a gRPC one](api/proto/management/management.proto).
