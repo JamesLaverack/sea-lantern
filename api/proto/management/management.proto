@@ -5,10 +5,9 @@ import "google/protobuf/empty.proto";
 
 service MinecraftManagement {
     rpc ListPlayers (google.protobuf.Empty) returns (ListPlayersReply);
-    //rpc SaveAll (SaveAllRequest) returns (SaveAllReply);
-    // TODO Replace with a SetAutomaticSave rpc, along with a WatchAutomaticSave that streams changes in that option
-    //rpc DisableAutomaticSave (DisableAutomaticSaveRequest) returns (DisableAutomaticSaveReply);
-    //rpc EnableAutomaticSave (EnableAutomaticSaveRequest) returns (EnableAutomaticSaveReply);
+    rpc SaveAll (google.protobuf.Empty) returns (google.protobuf.Empty);
+    rpc DisableAutomaticSave (google.protobuf.Empty) returns (google.protobuf.Empty);
+    rpc EnableAutomaticSave (google.protobuf.Empty) returns (google.protobuf.Empty);
 }
 
 message Player {
@@ -22,12 +21,3 @@ message ListPlayersReply {
     uint32 online_players = 2;
     repeated Player players = 3;
 }
-/*
-message SaveAllRequest {}
-message SaveAllReply {}
-
-message DisableAutomaticSaveRequest {}
-message DisableAutomaticSaveReply {}
-
-message EnableAutomaticSaveRequest {}
-message EnableAutomaticSaveReply {}*/
