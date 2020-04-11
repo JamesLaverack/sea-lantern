@@ -8,10 +8,95 @@ pub enum RconPacketType {
     Command,
 }
 
-fn packet_type_id(packet_type: RconPacketType) -> i32 {
+fn packet_type_id(packet_type: RconPacketType) -> u32 {
     match packet_type {
         RconPacketType::Login => 3,
         RconPacketType::Command => 2,
+    }
+}
+
+struct RconPacket {
+    request_id: i32,
+    packet_type: RconPacketType,
+    payload: str,
+}
+
+impl RconPacket {
+    pub fn new<S: Into<str>>(
+        request_id: i32,
+        packet_type: RconPacketType,
+        payload: S) -> Result<::Self, RCONPacketError> {
+        if !payload.is_ascii() {
+            return Err(RCONPacketError::Ascii)
+        }
+
+        // Convert string to ascii bytes
+        let payload_bytes = payload.as_bytes();
+        let payload_length = payload_bytes.len();
+
+        // From https://wiki.vg/RCON
+
+
+        if payload_length > MAXIMUM_PAYLOAD_LENGTH {
+            return Err(RCONPacketError::TooLong(PayloadTooLongError{
+                max_payload_length: MAXIMUM_PAYLOAD_LENGTH,
+                actual_payload_length: payload_length,
+            }))
+        }
+
+        Ok(RconPacket{
+            request_id: request_id,
+            packet_type: packet_type,
+            payload: payload.into(),
+        })
+    }
+
+    pub fn serialise(&self, data: &mut [u8]) -> usize {
+        // The plus 14 is because of three 32-bit ints, and two bytes of padding.
+        let total_packet_length = payload_length + 14;
+        // For the length we put at the start, don't count the first i32
+        let remainder_of_packet_length = payload_length + 10;
+
+        // First four bytes will be the length.
+        packet[0..4].copy_from_slice(&(remainder_of_packet_length as u32).to_le_bytes());
+        // The request ID
+        packet[4..8].copy_from_slice(&(request_id as u32).to_le_bytes());
+        // The packet type
+        packet[8..12].copy_from_slice(&(packet_type_id(packet_type) as u32).to_le_bytes());
+        // Payload
+        packet[12..(12 + payload_length)].copy_from_slice(payload_bytes);
+        // Two nil bytes of padding
+        packet[(12 + payload_length)] = 0 as u8;
+        packet[(13 + payload_length)] = 0 as u8;
+
+        total_packet_length
+    }
+
+    pub fn deserialise(data: &mut [u8]) -> Result<::Self, > {
+        // The plus 14 is because of three 32-bit ints, and two bytes of padding.
+        let actual_packet_length = data.len();
+
+        // First four bytes will be the declared remainder length.
+        let remainder_of_packet_length = u32::from_le_bytes(data[0..4]);
+        // The declared length doesn't include the four bytes of integer we just parsed.
+        let declared_packet_length = remainder_of_packet_length + 4;
+        if declared_packet_length > actual_packet_length {
+
+        }
+
+        data[0..4].copy_from_slice(&(remainder_of_packet_length as i32).to_le_bytes());
+        // The request ID
+        data[4..8].copy_from_slice(&(request_id as i32).to_le_bytes());
+        // The packet type
+        data[8..12].copy_from_slice(&(packet_type_id(packet_type) as i32).to_le_bytes());
+        // Payload
+        data[12..(12 + payload_length)].copy_from_slice(payload_bytes);
+        // Two nil bytes of padding
+        data[(12 + payload_length)] = 0 as u8;
+        data[(13 + payload_length)] = 0 as u8;
+
+        total_packet_length
+
     }
 }
 
@@ -27,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_rcon_packet() -> Result<(), RCONError> {
+    fn test_write_rcon_packet() -> Result<(), RCONPacketError> {
         let mut packet = [0 as u8; MAXIMUM_PAYLOAD_LENGTH];
         let packet_size = write_rcon_packet(1337, RconPacketType::Command, "list uuids", &mut packet)?;
 
@@ -64,67 +149,41 @@ mod tests {
         match write_rcon_packet(1337, RconPacketType::Command, "(╯°□°)╯︵ ┻━┻", &mut packet) {
             Ok(_) => assert!(false),
             Err(e) => match e {
-                RCONError::Ascii => (),
+                RCONPacketError::Ascii => (),
                 _ => assert!(false),
             },
         }
     }
 }
 
-pub fn write_rcon_packet(
+pub fn write_rcon_packet<S: AsRef<str>>(
     request_id: i32,
     packet_type: RconPacketType,
-    payload: &str,
-    packet: &mut [u8]) -> Result<usize, RCONError> {
-    if !payload.is_ascii() {
-        return Err(RCONError::Ascii)
-    }
-
-    // Convert string to ascii bytes
-    let payload_bytes = payload.as_bytes();
-    let payload_length = payload_bytes.len();
-
-    // From https://wiki.vg/RCON
+    payload: S,
+    packet: &mut [u8]) -> Result<usize, RCONPacketError> {
 
 
-    if payload_length > MAXIMUM_PAYLOAD_LENGTH {
-        return Err(RCONError::TooLong(PayloadTooLongError{
-            max_payload_length: MAXIMUM_PAYLOAD_LENGTH,
-            actual_payload_length: payload_length,
-        }))
-    }
-
-    // The plus 14 is because of three 32-bit ints, and two bytes of padding.
-    let total_packet_length = payload_length + 14;
-    // For the length we put at the start, don't count the first i32
-    let remainder_of_packet_length = payload_length + 10;
-
-    // First four bytes will be the length.
-    packet[0..4].copy_from_slice(&(remainder_of_packet_length as i32).to_le_bytes());
-    // The request ID
-    packet[4..8].copy_from_slice(&(request_id as i32).to_le_bytes());
-    // The packet type
-    packet[8..12].copy_from_slice(&(packet_type_id(packet_type) as i32).to_le_bytes());
-    // Payload
-    packet[12..(12 + payload_length)].copy_from_slice(payload_bytes);
-    // Two nil bytes of padding
-    packet[(12 + payload_length)] = 0 as u8;
-    packet[(13 + payload_length)] = 0 as u8;
 
     return Ok(total_packet_length)
 }
 
+pub enum RCONPacketDeserialiseError {
+    InvalidLength(InvalidLengthError),
+    InvalidType(InvalidTypeError),
+
+}
+
 #[derive(Debug, Clone)]
-pub enum RCONError {
+pub enum RCONPacketError {
     Ascii,
     TooLong(PayloadTooLongError),
 }
 
-impl fmt::Display for RCONError {
+impl fmt::Display for RCONPacketError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            RCONError::Ascii => write!(f, "Payload was not ASCII"),
-            RCONError::TooLong(ref err) => {
+            RCONPacketError::Ascii => write!(f, "Payload was not ASCII"),
+            RCONPacketError::TooLong(ref err) => {
                 write!(f, "Payload too long. Maximum size is {} bytes (ASCII), message was {} bytes.",
                        err.max_payload_length,
                        err.actual_payload_length)
@@ -133,11 +192,11 @@ impl fmt::Display for RCONError {
     }
 }
 
-impl error::Error for RCONError {
+impl error::Error for RCONPacketError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
-            RCONError::Ascii => None,
-            RCONError::TooLong(_) => None,
+            RCONPacketError::Ascii => None,
+            RCONPacketError::TooLong(_) => None,
         }
     }
 }

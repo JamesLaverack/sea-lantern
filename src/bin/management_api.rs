@@ -191,6 +191,36 @@ impl MinecraftManagement for RconMinecraftManagement {
         _request: Request<()>,
     ) -> Result<Response<ListPlayersReply>, Status> {
         info!("Got a request to list players");
+        
+
+        let remote_addr: SocketAddr = format!("{}:{}", self.rcon_host, self.rcon_port).parse()?;
+
+        // We use port 0 to let the operating system allocate an available port for us.
+        let local_addr: SocketAddr = if remote_addr.is_ipv4() {
+            "0.0.0.0:0"
+        } else {
+            "[::]:0"
+        }
+            .parse()?;
+
+        let mut socket = UdpSocket::bind(local_addr).await?;
+        const MAX_DATAGRAM_SIZE: usize = 65_507;
+        socket.connect(&remote_addr).await?;
+
+        // Auth
+        let mut rcon_packet = [0u8; sea_lantern::rcon::MAXIMUM_PAYLOAD_LENGTH];
+        rcon_packet_size = write_rcon_packet(0, RconPacketType::Login, &self.rcon_password, &rcon_packet)?;
+        socket.send(&rcon_packet[0..rcon_packet_size]).await?;
+
+        let mut data = [0u8; MAX_DATAGRAM_SIZE];
+        let len = socket.recv(&mut data).await?;
+        println!(
+            "Received {} bytes:\n{}",
+            len,
+            String::from_utf8_lossy(&data[..len])
+        );
+
+        Ok(())
         // Auth to rcons
         Ok(Response::new(management::ListPlayersReply {
             // If the regex matched, these two capture groups must be `\d+`, so
