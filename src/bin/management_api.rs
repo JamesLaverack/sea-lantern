@@ -11,13 +11,20 @@ use management::minecraft_management_server::{MinecraftManagementServer, Minecra
 use management::{ListPlayersReply, Player};
 use std::net::SocketAddr;
 
-use rcon::Connection as RconConnection;
-
-
-// SaveAllRequest, SaveAllReply, DisableAutomaticSaveRequest, DisableAutomaticSaveReply, EnableAutomaticSaveRequest, EnableAutomaticSaveReply
+use rcon::{Connection as RconConnection, Error as RconError};
 
 pub mod management {
     tonic::include_proto!("management");
+}
+
+fn convert_conn_err<T>(r: Result<T, RconError>) -> Result<T, Status> {
+    return match r {
+        Ok(c) => Ok(c),
+        Err(e) => {
+            error!("Encountered error communicating with Minecraft: {:?}", e);
+            Err(Status::unavailable("Unable to connect to Minecraft"))
+        },
+    }
 }
 
 #[derive(Debug)]
@@ -183,20 +190,8 @@ impl MinecraftManagement for RconMinecraftManagement {
         _request: Request<()>,
     ) -> Result<Response<ListPlayersReply>, Status> {
         info!("Got a request to list players");
-        let mut conn = match RconConnection::connect(self.rcon_address, self.rcon_password.as_str()).await {
-            Ok(c) => c,
-            Err(e) => {
-                error!("Encountered error connecting to server: {:?}", e);
-                return Err(Status::unavailable("Unable to connect to Minecraft"));
-            },
-        };
-        let response = match conn.cmd("list uuids").await {
-            Ok(c) => c,
-            Err(e) => {
-                error!("Encountered error sending command to server: {:?}", e);
-                return Err(Status::unavailable("Unable to connect to Minecraft"));
-            },
-        };
+        let mut conn = convert_conn_err(RconConnection::connect(self.rcon_address, self.rcon_password.as_str()).await)?;
+        let response = convert_conn_err(conn.cmd("list uuids").await)?;
 
         let player_list_regex = Regex::new(r"^There are (?P<current>\d+) of a max (?P<max>\d+) players online:").unwrap();
         let player_details_regex = Regex::new(r"(?P<name>\w+)[ ]\((?P<uuid>[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12})\)").unwrap();
