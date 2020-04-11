@@ -1,5 +1,5 @@
 [package]
-name = "sea_lantern"
+name = "sea-lantern"
 version = "0.1.0"
 authors = ["James Laverack <james@jameslaverack.com>"]
 edition = "2018"
