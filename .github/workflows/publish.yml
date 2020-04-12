@@ -11,7 +11,7 @@ jobs:
         run: echo ${{ secrets.QUAY_TOKEN }} | docker login --username ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Get the version
         id: vars
-        run: echo ::set-output name=tag::$(echo ${GITHUB_REF:10})
+        run: echo ::set-output name=tag::$(echo ${GITHUB_SHA:10})
       - name: Cargo Build
         run: cargo build --release --verbose --bin management_api
       - name: Build the tagged Docker image
