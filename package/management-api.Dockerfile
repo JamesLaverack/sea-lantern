@@ -1,4 +1,4 @@
-FROM gcr.io/distroless/base
+FROM gcr.io/distroless/base:nonroot
 
 COPY target/release/management_api /bin/management-api
 

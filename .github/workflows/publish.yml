@@ -1,0 +1,24 @@
+name: Publish Container Images
+on:
+  push:
+    branches: [ master ]
+jobs:
+  management-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Login to Quay Registry
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login --username ${{ secrets.QUAY_USERNAME }} --password-stdin
+      - name: Get the version
+        id: vars
+        run: echo ::set-output name=tag::$(echo ${GITHUB_REF:10})
+      - name: Cargo Build
+        run: cargo build --release --verbose --bin management_api
+      - name: Build the tagged Docker image
+        run: docker build . --file package/management-api.Dockerfile --tag quay.io/sea-lantern/management-api:${{steps.vars.outputs.tag}}
+      - name: Push the tagged Docker image
+        run: docker push quay.io/sea-lantern/management-api:${{steps.vars.outputs.tag}}
+      - name: Tag the latest Docker image
+        run: docker tag quay.io/sea-lantern/management-api:${{steps.vars.outputs.tag}} quay.io/sea-lantern/management-api:latest
+      - name: Push the latest Docker image
+        run: docker push quay.io/sea-lantern/management-api:latest
