@@ -23,3 +23,5 @@ steep learning curve.
   [a gRPC one](api/proto/management/management.proto).
 * The [EULA Wrtier](src/bin/eula_writer.rs) is to be used as a init container on a Minecraft pod. It will write the EULA
   agreement file if a flag is passed to indicate acceptance of the EULA.
+* The [Server Properties Updater](src/bin/server_properties_updater.rs) is to be used as an init container and writes or
+  updates the `server.properties` file. Currently it hardcodes some RCON configuration.
