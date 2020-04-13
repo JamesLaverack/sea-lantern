@@ -8,7 +8,6 @@ use tonic::{transport::Server, Request, Response, Status};
 
 use management::minecraft_management_server::{MinecraftManagement, MinecraftManagementServer};
 use management::{ListPlayersReply, Player};
-use std::net::SocketAddr;
 
 use rcon::{Connection as RconConnection, Error as RconError};
 
@@ -28,15 +27,12 @@ fn convert_conn_err<T>(r: Result<T, RconError>) -> Result<T, Status> {
 
 #[derive(Debug)]
 pub struct RconMinecraftManagement {
-    rcon_address: SocketAddr,
+    rcon_address: String,
     rcon_password: String,
 }
 
 impl RconMinecraftManagement {
-    fn new<S, A>(rcon_address: A, rcon_password: S) -> Self
-    where
-        S: Into<String>,
-        A: Into<SocketAddr>,
+    fn new<S: Into<String>>(rcon_address: S, rcon_password: S) -> Self
     {
         RconMinecraftManagement {
             rcon_address: rcon_address.into(),
@@ -54,7 +50,7 @@ impl MinecraftManagement for RconMinecraftManagement {
         info!("Got a request to list players");
         const CMD: &str = "save-all";
         let mut conn = convert_conn_err(
-            RconConnection::connect(self.rcon_address, self.rcon_password.as_str()).await,
+            RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
         )?;
         let response = convert_conn_err(conn.cmd(CMD).await)?;
 
@@ -93,7 +89,7 @@ impl MinecraftManagement for RconMinecraftManagement {
         debug!("Got a request to enable automatic saving");
         const CMD: &str = "save-on";
         let mut conn = convert_conn_err(
-            RconConnection::connect(self.rcon_address, self.rcon_password.as_str()).await,
+            RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
         )?;
         let response = convert_conn_err(conn.cmd(CMD).await)?;
 
@@ -114,7 +110,7 @@ impl MinecraftManagement for RconMinecraftManagement {
         debug!("Got a request to disable automatic saving");
         const CMD: &str = "save-off";
         let mut conn = convert_conn_err(
-            RconConnection::connect(self.rcon_address, self.rcon_password.as_str()).await,
+            RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
         )?;
         let response = convert_conn_err(conn.cmd(CMD).await)?;
 
@@ -135,7 +131,7 @@ impl MinecraftManagement for RconMinecraftManagement {
         debug!("Got a request to save all");
         const CMD: &str = "save-all";
         let mut conn = convert_conn_err(
-            RconConnection::connect(self.rcon_address, self.rcon_password.as_str()).await,
+            RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
         )?;
         let response = convert_conn_err(conn.cmd(CMD).await)?;
 
@@ -184,24 +180,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_matches();
 
     let addr = format!("[::1]:{}", matches.value_of("grpc-port").unwrap()).parse()?;
-    let minecraft_addr = match matches
-        .value_of("minecraft-rcon-address")
-        .unwrap()
-        .parse::<SocketAddr>()
-    {
-        Ok(a) => a,
-        Err(e) => {
-            error!(
-                "Failed to parse server address {} : {:?}",
-                matches.value_of("minecraft-rcon-address").unwrap(),
-                e
-            );
-            return Err(e)?;
-        }
-    };
 
     let rcon_server = RconMinecraftManagement::new(
-        minecraft_addr,
+        matches.value_of("minecraft-rcon-address").unwrap(),
         matches.value_of("minecraft-rcon-password").unwrap(),
     );
 
