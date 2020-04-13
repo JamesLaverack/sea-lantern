@@ -49,7 +49,7 @@ impl MinecraftManagement for RconMinecraftManagement {
         _request: Request<()>,
     ) -> Result<Response<ListPlayersReply>, Status> {
         info!("Got a request to list players");
-        const CMD: &str = "save-all";
+        const CMD: &str = "list uuids";
         let mut conn = convert_conn_err(
             RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
         )?;
