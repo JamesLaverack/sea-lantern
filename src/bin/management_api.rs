@@ -10,6 +10,7 @@ use management::minecraft_management_server::{MinecraftManagement, MinecraftMana
 use management::{ListPlayersReply, Player};
 
 use rcon::{Connection as RconConnection, Error as RconError};
+use std::net::{Ipv4Addr, SocketAddrV4, SocketAddr};
 
 pub mod management {
     tonic::include_proto!("management");
@@ -179,18 +180,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .get_matches();
 
-    let addr = format!("[::1]:{}", matches.value_of("grpc-port").unwrap()).parse()?;
-
     let rcon_server = RconMinecraftManagement::new(
         matches.value_of("minecraft-rcon-address").unwrap(),
         matches.value_of("minecraft-rcon-password").unwrap(),
     );
 
+    let addr= SocketAddrV4::new(
+        Ipv4Addr::UNSPECIFIED,
+        matches.value_of("grpc-port").unwrap().parse()?);
     info!("Serving gRPC API on {:?}", addr);
 
     Server::builder()
         .add_service(MinecraftManagementServer::new(rcon_server))
-        .serve(addr)
+        .serve(SocketAddr::V4(addr))
         .await?;
 
     Ok(())
