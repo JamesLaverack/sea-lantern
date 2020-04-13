@@ -21,3 +21,5 @@ steep learning curve.
 * The [Management API](src/bin/management_api.rs) exists as a standalone component that will communicate with a
   Minecraft server that has enabled [RCON](https://wiki.vg/RCON). It fronts the RCON API into
   [a gRPC one](api/proto/management/management.proto).
+* The [EULA Wrtier](src/bin/eula_writer.rs) is to be used as a init container on a Minecraft pod. It will write the EULA
+  agreement file if a flag is passed to indicate acceptance of the EULA.

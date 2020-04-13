@@ -1,2 +1,3 @@
 target/
 !target/release/management_api
+!target/release/eula_writer
