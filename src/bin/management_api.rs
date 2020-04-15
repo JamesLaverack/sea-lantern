@@ -48,7 +48,7 @@ impl MinecraftManagement for RconMinecraftManagement {
         &self,
         _request: Request<()>,
     ) -> Result<Response<ListPlayersReply>, Status> {
-        info!("Got a request to list players");
+        info!("Serving request to list players");
         const CMD: &str = "list uuids";
         let mut conn = convert_conn_err(
             RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
@@ -87,7 +87,7 @@ impl MinecraftManagement for RconMinecraftManagement {
     }
 
     async fn enable_automatic_save(&self, _request: Request<()>) -> Result<Response<()>, Status> {
-        debug!("Got a request to enable automatic saving");
+        info!("Serving request to enable automatic saving");
         const CMD: &str = "save-on";
         let mut conn = convert_conn_err(
             RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
@@ -108,7 +108,7 @@ impl MinecraftManagement for RconMinecraftManagement {
     }
 
     async fn disable_automatic_save(&self, _request: Request<()>) -> Result<Response<()>, Status> {
-        debug!("Got a request to disable automatic saving");
+        info!("Serving request to disable automatic saving");
         const CMD: &str = "save-off";
         let mut conn = convert_conn_err(
             RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
@@ -129,7 +129,7 @@ impl MinecraftManagement for RconMinecraftManagement {
     }
 
     async fn save_all(&self, _request: Request<()>) -> Result<Response<()>, Status> {
-        debug!("Got a request to save all");
+        info!("Serving request to save all");
         const CMD: &str = "save-all";
         let mut conn = convert_conn_err(
             RconConnection::connect(&self.rcon_address, self.rcon_password.as_str()).await,
@@ -188,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr= SocketAddrV4::new(
         Ipv4Addr::UNSPECIFIED,
         matches.value_of("grpc-port").unwrap().parse()?);
-    info!("Serving gRPC API on {:?}", addr);
+    info!("Serving gRPC Minecraft management API on {:?}", addr);
 
     Server::builder()
         .add_service(MinecraftManagementServer::new(rcon_server))
