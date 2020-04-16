@@ -15,13 +15,6 @@ spec:
             spec:
               type: object
               properties:
-                rawImage:
-                  type: object
-                  properties:
-                    image:
-                      type: string
-                  required:
-                    - image
                 vanilla:
                   type: object
                   properties:
@@ -41,12 +34,9 @@ spec:
                     - spigotBuild
               oneOf:
                 - required:
-                  - rawImage
-                - required:
                   - vanilla
                 - required:
                   - spigot
-
   scope: Namespaced
   names:
     plural: minecraftserverversions
