@@ -15,8 +15,13 @@ spec:
             spec:
               type: object
               properties:
-                image:
-                  type: string
+                versionRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
                 rcon:
                   type: object
                   properties:
@@ -38,7 +43,10 @@ spec:
                   default: "A Minecraft Server"
                 eula:
                   # Don't default this. It's important that the user explicitly accepts the Minecraft EULA.
-                  type: boolean
+                  type: string
+                  enum:
+                    - Agreed
+                    - NotAgreed
                 difficulty:
                   type: string
                   default: Normal
@@ -47,6 +55,83 @@ spec:
                     - Easy
                     - Normal
                     - Hard
+                gameMode:
+                  type: string
+                  default: Survival
+                  enum:
+                    - Survival
+                    - Creative
+                    - Spectator
+                    - Adventure
+                viewDistance:
+                  type: integer
+                  default: 10
+                  minimum: 3
+                  maximum: 32
+                worldSize:
+                  x-kubernetes-int-or-string: true
+                  default: Maximum
+                  maximum: 29999984
+                  minimum: 1
+                  pattern: '(\d+|Maximum)'
+                maximumBuildHeight:
+                  type: integer
+                  format: int32
+                  default: 256
+                  minimum: 1
+                maximumPlayers:
+                  type: integer
+                  format: int32
+                  default: 20
+                  minimum: 1
+                pvp:
+                  type: string
+                  default: PvPAllowed
+                  enum:
+                    - PvPAllowed
+                    - PvEOnly
+                worldGeneration:
+                  type: object
+                  properties:
+                    seed:
+                      type: string
+                    levelType:
+                      type: string
+                      default: Default
+                      enum:
+                        - Default
+                        - Flat
+                        - LargeBiomes
+                        - Amplified
+                whitelist:
+                  type: string
+                  default: Disabled
+                  enum:
+                    - Disabled
+                    - Unmanaged
+                    - Managed
+                spawning:
+                  type: object
+                  default: {}
+                  properties:
+                    animals:
+                      type: string
+                      default: Enabled
+                      enum:
+                        - Enabled
+                        - Disabled
+                    monsters:
+                      type: string
+                      default: Enabled
+                      enum:
+                        - Enabled
+                        - Disabled
+                    nonPlayerCharacters:
+                      type: string
+                      default: Enabled
+                      enum:
+                        - Enabled
+                        - Disabled
   scope: Namespaced
   names:
     plural: minecraftservers
