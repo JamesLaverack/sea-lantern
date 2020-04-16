@@ -39,6 +39,14 @@ spec:
                 eula:
                   # Don't default this. It's important that the user explicitly accepts the Minecraft EULA.
                   type: boolean
+                difficulty:
+                  type: string
+                  default: Normal
+                  enum:
+                    - Peaceful
+                    - Easy
+                    - Normal
+                    - Hard
   scope: Namespaced
   names:
     plural: minecraftservers
