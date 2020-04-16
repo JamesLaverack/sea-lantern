@@ -1,0 +1,48 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: minecraftservers.minecraft.jameslaverack.com
+spec:
+  group: minecraft.jameslaverack.com
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                image:
+                  type: string
+                rcon:
+                  type: object
+                  properties:
+                    port:
+                      format: int16
+                      type: integer
+                      minimum: 1
+                      maximum: 65535
+                      default: 25575
+                    passwordSecretRef:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                motd:
+                  type: string
+                  default: "A Minecraft Server"
+                eula:
+                  # Don't default this. It's important that the user explicitly accepts the Minecraft EULA.
+                  type: boolean
+  scope: Namespaced
+  names:
+    plural: minecraftservers
+    singular: minecraftserver
+    kind: MinecraftServer
+    shortNames:
+      - ms
