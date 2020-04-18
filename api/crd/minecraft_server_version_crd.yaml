@@ -37,7 +37,7 @@ spec:
                   - vanilla
                 - required:
                   - spigot
-  scope: Namespaced
+  scope: Cluster
   names:
     plural: minecraftserverversions
     singular: minecraftserverversion
