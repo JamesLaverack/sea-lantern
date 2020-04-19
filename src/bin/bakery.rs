@@ -35,7 +35,9 @@ async fn main() -> anyhow::Result<()> {
     let rf2 = rf.clone(); // read from a clone in a task
     tokio::spawn(async move {
         loop {
-            // Periodically read our state
+            // Periodically read our state. This is pretty terrible, but the use of a reconcile
+            // function below abstracts our actual logic from this bad implementation. We can clean
+            // this up at a future date and keep the reconcile function the same.
             tokio::time::delay_for(std::time::Duration::from_secs(5)).await;
             rf2.state()
                 .await
