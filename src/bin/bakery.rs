@@ -5,6 +5,7 @@ use log::info;
 use kube::{
     api::{Api, ListParams, Meta},
     runtime::Reflector,
+    runtime::Informer,
     Client,
 };
 
@@ -27,25 +28,30 @@ async fn main() -> anyhow::Result<()> {
 
     // This example requires `kubectl apply -f examples/foo.yaml` run first
 
-    let versions: Api<MinecraftServerVersion> = Api::all(client);
+    let versions: Api<MinecraftServerVersion> = Api::all(client.clone());
     let lp = ListParams::default().timeout(20); // low timeout in this example
-    let rf = Reflector::new(versions).params(lp);
+    let rf = Reflector::new(versions.clone()).params(lp);
 
     let rf2 = rf.clone(); // read from a clone in a task
     tokio::spawn(async move {
         loop {
             // Periodically read our state
             tokio::time::delay_for(std::time::Duration::from_secs(5)).await;
-            let crds = rf2
-                .state()
+            rf2.state()
                 .await
                 .unwrap()
                 .iter()
-                .map(Meta::name)
-                .collect::<Vec<_>>();
-            info!("Current crds: {:?}", crds);
+                .for_each(
+                    |minecraft_version| {
+                        reconcile(minecraft_version, client.clone())
+                    }
+                );
         }
     });
     rf.run().await?; // run reflector and listen for signals
     Ok(())
+}
+
+fn reconcile(server_version: &MinecraftServerVersion, _client: Client) {
+    info!("Reconciling resource {}", server_version.name())
 }
