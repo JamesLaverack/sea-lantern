@@ -25,12 +25,6 @@ spec:
                 rcon:
                   type: object
                   properties:
-                    port:
-                      format: int16
-                      type: integer
-                      minimum: 1
-                      maximum: 65535
-                      default: 25575
                     passwordSecretRef:
                       type: object
                       properties:
