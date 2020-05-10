@@ -4,9 +4,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use log::{debug, error, info};
 
-
-#[tokio::main]
-async fn main() {
+fn main() {
     pretty_env_logger::init();
 
     let matches = App::new("Sea Lantern EULA Writer")
