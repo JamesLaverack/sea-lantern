@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use log::{debug, error, info};
 use ini::Ini;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     pretty_env_logger::init();
 
     // These are the names of properties in a minecraft server.properties file. It is not for this
@@ -30,7 +29,6 @@ async fn main() {
     // name "setting-max-players" which will be used as a flag "--setting-max-players".
     let long_names: Vec<String>  = properties.iter()
         .map(|prop| format!("setting-{}", prop))
-        //.map(|l| l.as_str())
         .collect();
 
     let mut app = App::new("Sea Lantern Server Properties Updater")
