@@ -2,3 +2,4 @@ target/
 !target/release/management_api
 !target/release/eula_writer
 !target/release/server_properties_updater
+!target/release/controller

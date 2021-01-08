@@ -15,6 +15,8 @@ spec:
             spec:
               type: object
               properties:
+                javaVersion:
+                  type: string
                 vanilla:
                   type: object
                   properties:

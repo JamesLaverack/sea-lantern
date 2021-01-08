@@ -16,6 +16,10 @@ path = "src/bin/eula_writer.rs"
 name = "server_properties_updater"
 path = "src/bin/server_properties_updater.rs"
 
+[[bin]]
+name = "controller"
+path = "src/bin/controller.rs"
+
 [dependencies]
 clap = "2.33.0"
 tokio = { version = "0.2", features = ["full"] }
